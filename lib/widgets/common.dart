@@ -62,7 +62,7 @@ class SectionHeading extends StatelessWidget {
           Text(caption!, style: const TextStyle(color: muted, fontSize: 12)),
         ],
       ])),
-      trailing?,
+      ?trailing,
     ]),
   );
 }
