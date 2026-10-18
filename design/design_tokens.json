@@ -1,0 +1,25 @@
+{
+  "name": "Wasiyyati — Living Document",
+  "version": "0.2.0",
+  "figma": "https://www.figma.com/design/zQrvYjOVDLhqBQLcUxs65C",
+  "direction": "rtl",
+  "colors": {
+    "canvas": "#F5F0E7",
+    "paper": "#FFFCF6",
+    "ink": "#203A36",
+    "secondaryInk": "#51665C",
+    "copper": "#A87958",
+    "rule": "#DED8C9",
+    "sage": "#E8EDE4",
+    "positive": "#3B6D62",
+    "warning": "#925640"
+  },
+  "radii": {"pageHero": 21, "paperCard": 19, "field": 15, "button": 16},
+  "fonts": {
+    "figmaDisplay": "Amiri Bold",
+    "figmaInterface": "Cairo",
+    "flutterOfflineFallback": "system sans-serif + system serif"
+  },
+  "screens": ["home", "rights", "add/edit record", "will editor", "will preview", "privacy"],
+  "designPrinciple": "A quiet editorial document interface, never an official stamp"
+}
