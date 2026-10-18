@@ -59,6 +59,10 @@ class VaultController extends ChangeNotifier {
         () => VaultData(entries: _data.entries, will: draft),
       );
 
+  // Replaces local state only after successful authenticated decryption,
+  // explicit user confirmation, and a complete encrypted disk write.
+  Future<void> replaceFromBackup(VaultData restored) => _commit(() => restored);
+
   // Serializes edits; the in-memory state changes only after a successful disk write.
   Future<void> _commit(VaultData Function() change) {
     final operation = _queue.then((_) async {

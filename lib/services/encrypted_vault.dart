@@ -73,7 +73,8 @@ class EncryptedVault {
 
   Future<void> save(VaultData data) async {
     final file = await _file();
-    final key = await _key(hasData: await file.exists());
+    final backup = File('${file.path}.bak');
+    final key = await _key(hasData: await file.exists() || await backup.exists());
     final encrypted = await _cipher.encrypt(utf8.encode(data.encode()), secretKey: key);
     final payload = jsonEncode({
       'v': 1,
@@ -82,7 +83,6 @@ class EncryptedVault {
       'mac': base64Encode(encrypted.mac.bytes),
     });
     final temp = File('${file.path}.tmp');
-    final backup = File('${file.path}.bak');
     await temp.writeAsString(payload, flush: true);
     if (await file.exists()) {
       await file.copy(backup.path);

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'screens/home_screen.dart';
+import 'screens/lock_screen.dart';
 import 'screens/records_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/will_screen.dart';
+import 'services/app_lock.dart';
 import 'services/encrypted_vault.dart';
 import 'services/vault_controller.dart';
 import 'theme/wasiyyati_theme.dart';
@@ -21,19 +23,35 @@ class WasiyyatiApp extends StatefulWidget {
   State<WasiyyatiApp> createState() => _WasiyyatiAppState();
 }
 
-class _WasiyyatiAppState extends State<WasiyyatiApp> {
+class _WasiyyatiAppState extends State<WasiyyatiApp>
+    with WidgetsBindingObserver {
   late final VaultController controller;
+  late final AppLock appLock;
   int selected = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    appLock = AppLock();
     controller = VaultController(EncryptedVault());
+    appLock.initialize();
     controller.initialize();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      appLock.lock();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    appLock.dispose();
     controller.dispose();
     super.dispose();
   }
@@ -52,7 +70,14 @@ class _WasiyyatiAppState extends State<WasiyyatiApp> {
     builder: (context, child) => Directionality(
       textDirection: TextDirection.rtl, child: child!),
     theme: buildWasiyyatiTheme(),
-    home: AnimatedBuilder(animation: controller, builder: (context, _) {
+    home: AnimatedBuilder(
+      animation: Listenable.merge([controller, appLock]), builder: (context, _) {
+      if (!appLock.ready) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      if (appLock.locked) {
+        return LockScreen(lock: appLock);
+      }
       if (controller.error case final String error) {
         return Scaffold(body: SafeArea(child: Center(child: Padding(
           padding: const EdgeInsets.all(24),
@@ -76,7 +101,7 @@ class _WasiyyatiAppState extends State<WasiyyatiApp> {
         HomeScreen(controller: controller),
         RecordsScreen(controller: controller),
         WillScreen(controller: controller),
-        SettingsScreen(controller: controller),
+        SettingsScreen(controller: controller, appLock: appLock),
       ];
       return Scaffold(
         body: pages[selected],
