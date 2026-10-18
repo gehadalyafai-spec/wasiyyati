@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 Write-Host "Preparing Wasiyyati Flutter Android host..." -ForegroundColor Cyan
-flutter create . --platforms=android --project-name wasiyyati --org com.gehadalyafai
+flutter create . --no-pub --platforms=android --project-name wasiyyati --org com.gehadalyafai
 if ($LASTEXITCODE -ne 0) { throw 'flutter create failed' }
 
 # Important: local vault key is in Android Keystore. Restoring app files without
@@ -59,8 +59,9 @@ foreach ($themeFile in $themeFiles) {
 # Some Flutter templates add a default widget_test that references template MyApp.
 # Our real tests are test/vault_data_test.dart.
 if (Test-Path 'test\widget_test.dart') { Remove-Item 'test\widget_test.dart' }
+Write-Host 'Resolving Flutter dependencies...' -ForegroundColor Cyan
 flutter pub get
-if ($LASTEXITCODE -ne 0) { throw 'flutter pub get failed' }
+if ($LASTEXITCODE -ne 0) { throw 'flutter pub get failed; resolve dependency constraints above' }
 flutter analyze
 if ($LASTEXITCODE -ne 0) { throw 'flutter analyze failed; review the output above' }
 flutter test
