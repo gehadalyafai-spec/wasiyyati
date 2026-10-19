@@ -22,11 +22,26 @@ void main() {
   testWidgets('editing toggles the unsaved-change indicator', (tester) async {
     final vault = VaultController(EncryptedVault());
     addTearDown(vault.dispose);
-    await tester.pumpWidget(MaterialApp(home: WillScreen(controller: vault)));
+    final editorKey = GlobalKey<WillScreenState>();
+    await tester.pumpWidget(MaterialApp(
+      home: WillScreen(key: editorKey, controller: vault),
+    ));
     expect(find.text('لا توجد تغييرات معلّقة'), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const Key('will-full-name')));
-    await tester.enterText(find.byKey(const Key('will-full-name')), 'اسم تجريبي');
+    expect(editorKey.currentState!.hasUnsavedChanges, isFalse);
+
+    final field = find.byKey(const Key('will-full-name'));
+    await tester.ensureVisible(field);
+    await tester.enterText(field, 'اسم تجريبي');
     await tester.pump();
+    expect(editorKey.currentState!.hasUnsavedChanges, isTrue);
+
+    // Editing may scroll the ListView to keep the field visible. The status
+    // is near the top and may be outside the lazily-built viewport.
+    final scrollable = tester.state<ScrollableState>(
+      find.byType(Scrollable).first,
+    );
+    scrollable.position.jumpTo(scrollable.position.minScrollExtent);
+    await tester.pumpAndSettle();
     expect(find.text('تغييرات غير محفوظة'), findsOneWidget);
   });
 
