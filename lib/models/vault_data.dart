@@ -18,6 +18,8 @@ class VaultEntry {
     required this.title,
     this.party = '',
     this.amount,
+    this.currencyCode,
+    this.dueDate,
     this.notes = '',
     this.completed = false,
     required this.createdAt,
@@ -29,6 +31,10 @@ class VaultEntry {
   final String title;
   final String party;
   final double? amount;
+  /// Optional, explicit ISO-like currency code. Legacy records leave it unset.
+  final String? currencyCode;
+  /// Optional local calendar date for payment or review.
+  final DateTime? dueDate;
   final String notes;
   final bool completed;
   final DateTime createdAt;
@@ -40,6 +46,8 @@ class VaultEntry {
         title: title,
         party: party,
         amount: amount,
+        currencyCode: currencyCode,
+        dueDate: dueDate,
         notes: notes,
         completed: completed ?? this.completed,
         createdAt: createdAt,
@@ -52,6 +60,8 @@ class VaultEntry {
         'title': title,
         'party': party,
         'amount': amount,
+        'currencyCode': currencyCode,
+        'dueDate': dueDate?.toIso8601String(),
         'notes': notes,
         'completed': completed,
         'createdAt': createdAt.toIso8601String(),
@@ -64,6 +74,8 @@ class VaultEntry {
         title: json['title'] as String? ?? '',
         party: json['party'] as String? ?? '',
         amount: (json['amount'] as num?)?.toDouble(),
+        currencyCode: json['currencyCode'] as String?,
+        dueDate: DateTime.tryParse(json['dueDate'] as String? ?? ''),
         notes: json['notes'] as String? ?? '',
         completed: json['completed'] as bool? ?? false,
         createdAt: DateTime.parse(json['createdAt'] as String),
