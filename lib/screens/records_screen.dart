@@ -7,7 +7,6 @@ import '../widgets/common.dart';
 import 'entry_form.dart';
 
 enum _SettlementFilter { all, pending, completed }
-enum _RecordsOrder { newest, oldest, nearestDue }
 
 class RecordsScreen extends StatefulWidget {
   const RecordsScreen({super.key, required this.controller, this.initialKind});
@@ -22,7 +21,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   EntryKind? filter;
   String query = '';
   _SettlementFilter settlement = _SettlementFilter.all;
-  _RecordsOrder order = _RecordsOrder.newest;
+  RecordSortOrder order = RecordSortOrder.newest;
 
   @override
   void initState() {
@@ -34,25 +33,6 @@ class _RecordsScreenState extends State<RecordsScreen> {
   void dispose() {
     searchController.dispose();
     super.dispose();
-  }
-
-  int _compareEntries(VaultEntry a, VaultEntry b) {
-    switch (order) {
-      case _RecordsOrder.newest:
-        return b.updatedAt.compareTo(a.updatedAt);
-      case _RecordsOrder.oldest:
-        return a.updatedAt.compareTo(b.updatedAt);
-      case _RecordsOrder.nearestDue:
-        final aDue = a.dueDate;
-        final bDue = b.dueDate;
-        if (aDue == null && bDue == null) {
-          return b.updatedAt.compareTo(a.updatedAt);
-        }
-        if (aDue == null) return 1;
-        if (bDue == null) return -1;
-        final comparison = aDue.compareTo(bDue);
-        return comparison == 0 ? b.updatedAt.compareTo(a.updatedAt) : comparison;
-    }
   }
 
   Future<void> _openForm({VaultEntry? entry}) async {
@@ -92,7 +72,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
             entry.title, entry.party, entry.notes, entry.kind.plural,
             entry.currencyCode ?? '', currencyDescription(entry.currencyCode),
           ].any((value) => value.toLowerCase().contains(needle));
-        }).toList()..sort(_compareEntries);
+        }).toList()..sort((a, b) => compareRecordEntries(a, b, order));
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(23, 0, 23, 2),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -149,17 +129,17 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 },
               ),
               const Spacer(),
-              PopupMenuButton<_RecordsOrder>(
+              PopupMenuButton<RecordSortOrder>(
                 tooltip: 'ترتيب السجلات',
                 icon: const Icon(Icons.sort_rounded),
                 onSelected: (value) => setState(() => order = value),
                 itemBuilder: (context) => const [
                   PopupMenuItem(
-                    value: _RecordsOrder.newest, child: Text('الأحدث تعديلًا')),
+                    value: RecordSortOrder.newest, child: Text('الأحدث تعديلًا')),
                   PopupMenuItem(
-                    value: _RecordsOrder.oldest, child: Text('الأقدم تعديلًا')),
+                    value: RecordSortOrder.oldest, child: Text('الأقدم تعديلًا')),
                   PopupMenuItem(
-                    value: _RecordsOrder.nearestDue,
+                    value: RecordSortOrder.nearestDue,
                     child: Text('أقرب موعد أولًا')),
                 ],
               ),

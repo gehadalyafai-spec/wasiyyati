@@ -38,3 +38,31 @@ bool isRecordOverdue(VaultEntry entry, DateTime today) {
   final currentDay = DateTime(today.year, today.month, today.day);
   return dueDay.isBefore(currentDay);
 }
+
+enum RecordSortOrder { newest, oldest, nearestDue }
+
+/// Deterministic ordering: records without a date sort last in due-date mode.
+int compareRecordEntries(VaultEntry a, VaultEntry b, RecordSortOrder order) {
+  switch (order) {
+    case RecordSortOrder.newest:
+      return b.updatedAt.compareTo(a.updatedAt);
+    case RecordSortOrder.oldest:
+      return a.updatedAt.compareTo(b.updatedAt);
+    case RecordSortOrder.nearestDue:
+      final aDate = a.dueDate;
+      final bDate = b.dueDate;
+      if (aDate == null && bDate == null) {
+        return b.updatedAt.compareTo(a.updatedAt);
+      }
+      if (aDate == null) {
+        return 1;
+      }
+      if (bDate == null) {
+        return -1;
+      }
+      final comparison = aDate.compareTo(bDate);
+      return comparison == 0
+          ? b.updatedAt.compareTo(a.updatedAt)
+          : comparison;
+  }
+}

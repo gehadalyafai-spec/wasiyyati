@@ -54,6 +54,30 @@ void main() {
     expect(isRecordOverdue(sample(due: yesterday, kind: EntryKind.trust), now), isFalse);
   });
 
+  test('sort by nearest due date places unknown dates last', () {
+    final later = sample(due: DateTime(2026, 10, 25));
+    final sooner = sample(due: DateTime(2026, 10, 21));
+    final unspecified = sample();
+    final records = [later, unspecified, sooner]
+      ..sort((a, b) => compareRecordEntries(a, b, RecordSortOrder.nearestDue));
+    expect(records[0].dueDate, sooner.dueDate);
+    expect(records[1].dueDate, later.dueDate);
+    expect(records[2].dueDate, isNull);
+  });
+
+  test('sort by modification date remains predictable', () {
+    final first = sample();
+    final newer = VaultEntry(
+      id: 'right-2', kind: EntryKind.owed, title: 'ثان',
+      createdAt: date, updatedAt: date.add(const Duration(days: 1)),
+    );
+    final records = [first, newer]
+      ..sort((a, b) => compareRecordEntries(a, b, RecordSortOrder.newest));
+    expect(records.first.id, 'right-2');
+    records.sort((a, b) => compareRecordEntries(a, b, RecordSortOrder.oldest));
+    expect(records.first.id, 'right-1');
+  });
+
   test('currency labels do not invent denominations', () {
     expect(currencyDescription(null), 'العملة غير محددة');
     expect(currencyDescription('YER'), 'ريال يمني');

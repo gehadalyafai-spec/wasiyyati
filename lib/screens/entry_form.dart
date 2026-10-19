@@ -150,7 +150,7 @@ class _EntryFormState extends State<EntryForm> {
                   value: option.key,
                   child: Text('${option.value} (${option.key})'),
                 ),
-              if (_currencyCode != null &&
+              if (_currencyCode != null && _currencyCode!.isNotEmpty &&
                   !supportedRecordCurrencies.containsKey(_currencyCode))
                 DropdownMenuItem<String>(
                   value: _currencyCode!,
