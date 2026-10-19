@@ -13,8 +13,8 @@ class HomeScreen extends StatelessWidget {
   final VaultController controller;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: WScreenWidth(child: ListView(
+  Widget build(BuildContext context) => SafeArea(
+    child: WScreenWidth(child: ListView(
       key: const Key('home-scroll'),
       padding: const EdgeInsets.fromLTRB(23, 8, 23, 29),
       children: [

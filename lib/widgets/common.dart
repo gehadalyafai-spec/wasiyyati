@@ -8,13 +8,35 @@ const forest = WasiyyatiColors.ink;
 const cream = WasiyyatiColors.canvas;
 const muted = WasiyyatiColors.secondaryInk;
 
+/// Caps horizontal width without forcing a fixed height.
 class WScreenWidth extends StatelessWidget {
-  const WScreenWidth({super.key, required this.child});
+  const WScreenWidth({
+    super.key,
+    required this.child,
+    this.shrinkWrapHeight = false,
+  });
   final Widget child;
+
+  /// The bottom navigation bar must occupy only its intrinsic height.
+  /// A default Center in Scaffold.bottomNavigationBar can expand to the
+  /// full viewport and leave no room for the body.
+  final bool shrinkWrapHeight;
+
   @override
-  Widget build(BuildContext context) => Center(child: ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 620), child: child,
-  ));
+  Widget build(BuildContext context) {
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: child,
+    );
+    if (shrinkWrapHeight) {
+      return Align(
+        alignment: Alignment.topCenter,
+        heightFactor: 1,
+        child: content,
+      );
+    }
+    return Center(child: content);
+  }
 }
 
 class WPageIntro extends StatelessWidget {

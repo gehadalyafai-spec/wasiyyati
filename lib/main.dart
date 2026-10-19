@@ -125,7 +125,7 @@ class _WasiyyatiAppState extends State<WasiyyatiApp>
       ];
       return Scaffold(
         body: pages[selected],
-        bottomNavigationBar: _DocumentNavigation(
+        bottomNavigationBar: DocumentNavigation(
           selected: selected,
           onSelected: _switchTab,
         ),
@@ -134,8 +134,8 @@ class _WasiyyatiAppState extends State<WasiyyatiApp>
   );
 }
 
-class _DocumentNavigation extends StatelessWidget {
-  const _DocumentNavigation({required this.selected, required this.onSelected});
+class DocumentNavigation extends StatelessWidget {
+  const DocumentNavigation({super.key, required this.selected, required this.onSelected});
   final int selected;
   final ValueChanged<int> onSelected;
   static const items = [
@@ -148,12 +148,13 @@ class _DocumentNavigation extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
     top: false,
     child: Container(
+      key: const Key('document-navigation'),
       decoration: const BoxDecoration(
         color: WasiyyatiColors.canvas,
         border: Border(top: BorderSide(color: WasiyyatiColors.rule, width: .8)),
       ),
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 7),
-      child: WScreenWidth(child: Row(children: [
+      child: WScreenWidth(shrinkWrapHeight: true, child: Row(children: [
         for (var i = 0; i < items.length; i++)
           Expanded(child: Semantics(
             selected: selected == i,
