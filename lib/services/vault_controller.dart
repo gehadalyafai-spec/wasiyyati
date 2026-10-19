@@ -16,6 +16,7 @@ class VaultController extends ChangeNotifier {
   String? get error => _error;
   List<VaultEntry> get entries => List.unmodifiable(_data.entries);
   WillDraft get will => _data.will;
+  List<WillRevision> get revisions => List.unmodifiable(_data.revisions);
   VaultData get snapshot => _data;
   int countFor(EntryKind kind) => _data.entries.where((e) => e.kind == kind).length;
 
@@ -44,20 +45,57 @@ class VaultController extends ChangeNotifier {
         } else {
           next[existing] = entry;
         }
-        return VaultData(entries: next, will: _data.will);
+        return VaultData(entries: next, will: _data.will, revisions: _data.revisions);
       });
 
   Future<void> removeEntry(String id) => _commit(() => VaultData(
         entries: _data.entries.where((e) => e.id != id).toList(),
         will: _data.will,
+        revisions: _data.revisions,
       ));
 
   Future<void> changeCompleted(VaultEntry entry, bool completed) =>
       saveEntry(entry.copyWith(completed: completed));
 
-  Future<void> saveWill(WillDraft draft) => _commit(
-        () => VaultData(entries: _data.entries, will: draft),
-      );
+  Future<void> saveWill(WillDraft draft) => _commit(() {
+        final previous = _data.will;
+        if (previous.hasSameContent(draft)) return _data;
+        return VaultData(
+          entries: _data.entries,
+          will: draft,
+          revisions: WillRevisionPolicy.capture(
+            previous: previous, next: draft, existing: _data.revisions,
+            revisionId: newId(), savedAt: previous.lastReviewed ?? DateTime.now(),
+          ),
+        );
+      });
+
+  /// Restoring a revision also archives the current nonempty draft, so the
+  /// action can be reversed. All writes still pass through the encrypted vault.
+  Future<void> restoreWillRevision(String revisionId) => _commit(() {
+        final version = _data.revisions.firstWhere(
+          (item) => item.id == revisionId,
+          orElse: () => throw StateError('هذه النسخة غير موجودة'),
+        );
+        if (_data.will.hasSameContent(version.draft)) return _data;
+        return VaultData(
+          entries: _data.entries,
+          will: WillDraft(
+            fullName: version.draft.fullName,
+            city: version.draft.city,
+            executorName: version.draft.executorName,
+            executorContact: version.draft.executorContact,
+            bequests: version.draft.bequests,
+            instructions: version.draft.instructions,
+            lastReviewed: DateTime.now(),
+          ),
+          revisions: WillRevisionPolicy.capture(
+            previous: _data.will, next: version.draft,
+            existing: _data.revisions, revisionId: newId(),
+            savedAt: _data.will.lastReviewed ?? DateTime.now(),
+          ),
+        );
+      });
 
   // Replaces local state only after successful authenticated decryption,
   // explicit user confirmation, and a complete encrypted disk write.
@@ -68,6 +106,7 @@ class VaultController extends ChangeNotifier {
     final operation = _queue.then((_) async {
       if (!_ready) throw StateError('الخزنة غير جاهزة');
       final newData = change();
+      if (identical(newData, _data)) return;
       await _repo.save(newData);
       _data = newData;
       notifyListeners();

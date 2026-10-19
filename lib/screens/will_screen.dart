@@ -4,6 +4,7 @@ import '../services/pdf_export.dart';
 import '../services/vault_controller.dart';
 import '../theme/wasiyyati_theme.dart';
 import '../widgets/common.dart';
+import 'will_history_screen.dart';
 
 class WillScreen extends StatefulWidget {
   const WillScreen({super.key, required this.controller});
@@ -59,6 +60,28 @@ class _WillScreenState extends State<WillScreen> {
       return false;
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Save any pending form edits before opening older encrypted revisions.
+  Future<void> _openHistory() async {
+    if (!await _save(showFeedback: false) || !mounted) return;
+    final restored = await Navigator.push<bool>(context, MaterialPageRoute(
+      builder: (_) => WillHistoryScreen(controller: widget.controller),
+    ));
+    if (restored == true && mounted) {
+      final draft = widget.controller.will;
+      setState(() {
+        _name.text = draft.fullName;
+        _city.text = draft.city;
+        _executor.text = draft.executorName;
+        _phone.text = draft.executorContact;
+        _bequests.text = draft.bequests;
+        _instructions.text = draft.instructions;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('تمت استعادة المسودة السابقة وحُفظت مشفرة'),
+      ));
     }
   }
 
@@ -165,6 +188,13 @@ class _WillScreenState extends State<WillScreen> {
               side: const BorderSide(color: WasiyyatiColors.rule),
               minimumSize: const Size.fromHeight(52),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('will-history'),
+            onPressed: _busy ? null : _openHistory,
+            icon: const Icon(Icons.history_rounded),
+            label: Text('الإصدارات السابقة (${widget.controller.revisions.length})'),
           ),
           const SizedBox(height: 15),
           const Text('احفظ تغييراتك قبل مغادرة الصفحة.', textAlign: TextAlign.center,

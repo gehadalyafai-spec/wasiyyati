@@ -13,6 +13,7 @@ import '../services/vault_controller.dart';
 import '../theme/wasiyyati_theme.dart';
 import '../widgets/common.dart';
 import 'will_screen.dart';
+import 'will_history_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.controller, required this.appLock});
@@ -231,6 +232,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'الاطلاع دون مشاركتها', () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => WillPreviewScreen(controller: widget.controller)))),
         const SizedBox(height: 9),
+        _tile(Icons.history_rounded, 'الإصدارات السابقة للوصية',
+          'معاينة صياغات قديمة واستعادتها إلى المسودة الحالية',
+          () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => WillHistoryScreen(controller: widget.controller)))),
+        const SizedBox(height: 9),
         _tile(Icons.picture_as_pdf_outlined, 'تصدير PDF غير مشفر',
           'مخصص للطباعة والمراجعة، وليس وثيقة رسمية', _exportPdf),
         const SizedBox(height: 23),
@@ -238,7 +244,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'قفل الشاشة يحمي العرض، والتشفير يحمي الملفات على الجهاز. '
           'لا تشارك النسخة الاحتياطية مع كلمة مرورها في القناة نفسها.'),
         const SizedBox(height: 22),
-        const Text('وصيتي • الإصدار 0.3.0', textAlign: TextAlign.center,
+        const Text('وصيتي • الإصدار 0.4.0', textAlign: TextAlign.center,
           style: TextStyle(color: WasiyyatiColors.secondaryInk, fontSize: 11.5)),
       ],
     )),
