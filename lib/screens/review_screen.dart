@@ -51,7 +51,7 @@ class ReviewScreen extends StatelessWidget {
     required List<VaultEntry> entries,
     required DateTime today,
     required IconData icon,
-    required bool late,
+    required bool isPast,
   }) => [
     Padding(
       padding: const EdgeInsets.only(top: 15),
@@ -61,7 +61,7 @@ class ReviewScreen extends StatelessWidget {
       ),
     ),
     for (final record in entries) ...[
-      _recordCard(context, record, today, icon, late),
+      _recordCard(context, record, today, icon, isPast),
       const SizedBox(height: 9),
     ],
   ];
@@ -71,7 +71,7 @@ class ReviewScreen extends StatelessWidget {
     VaultEntry entry,
     DateTime today,
     IconData icon,
-    bool late,
+    bool isPast,
   ) {
     final due = entry.dueDate!;
     final isMoneyRight =
@@ -90,12 +90,12 @@ class ReviewScreen extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: late ? const Color(0xFFF5E9E2) : WasiyyatiColors.sage,
+                  color: isPast ? const Color(0xFFF5E9E2) : WasiyyatiColors.sage,
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(
                   icon,
-                  color: late ? WasiyyatiColors.warning : WasiyyatiColors.ink,
+                  color: isPast ? WasiyyatiColors.warning : WasiyyatiColors.ink,
                   size: 19,
                 ),
               ),
@@ -152,7 +152,7 @@ class ReviewScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: late
+                  color: isPast
                       ? WasiyyatiColors.warning
                       : WasiyyatiColors.secondaryInk,
                 ),
@@ -259,7 +259,7 @@ class ReviewScreen extends StatelessWidget {
                     entries: plan.overdue,
                     today: today,
                     icon: Icons.error_outline_rounded,
-                    late: true,
+                    isPast: true,
                   ),
                 if (plan.today.isNotEmpty)
                   ..._section(
@@ -269,7 +269,7 @@ class ReviewScreen extends StatelessWidget {
                     entries: plan.today,
                     today: today,
                     icon: Icons.today_outlined,
-                    late: false,
+                    isPast: false,
                   ),
                 if (plan.upcoming.isNotEmpty)
                   ..._section(
@@ -279,7 +279,7 @@ class ReviewScreen extends StatelessWidget {
                     entries: plan.upcoming,
                     today: today,
                     icon: Icons.event_outlined,
-                    late: false,
+                    isPast: false,
                   ),
                 if (plan.later.isNotEmpty)
                   ..._section(
@@ -289,7 +289,7 @@ class ReviewScreen extends StatelessWidget {
                     entries: plan.later,
                     today: today,
                     icon: Icons.event_note_outlined,
-                    late: false,
+                    isPast: false,
                   ),
               ],
             ],
