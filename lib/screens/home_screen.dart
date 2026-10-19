@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../models/vault_data.dart';
 import '../services/vault_controller.dart';
 import '../theme/wasiyyati_theme.dart';
+import '../utils/review_schedule.dart';
 import '../widgets/common.dart';
 import 'records_screen.dart';
+import 'review_screen.dart';
 import 'will_screen.dart';
 
 /// The home is intentionally a document index, not a generic KPI dashboard.
@@ -40,7 +42,13 @@ class HomeScreen extends StatelessWidget {
           lastReviewed: controller.will.lastReviewed,
           onOpen: () => Navigator.push(context, MaterialPageRoute(
             builder: (_) => WillScreen(controller: controller)))),
-        const SizedBox(height: 25),
+        const SizedBox(height: 15),
+        _ReviewDigest(
+          schedule: ReviewSchedule.fromEntries(controller.entries, DateTime.now()),
+          onOpen: () => Navigator.push<void>(context, MaterialPageRoute(
+            builder: (_) => ReviewScreen(controller: controller))),
+        ),
+        const SizedBox(height: 24),
         const SectionHeading('فهرس الحقوق', caption: 'انتقل إلى القسم الذي تريد تنظيمه'),
         for (final category in const [
           (EntryKind.receivable, Icons.south_west_rounded, 'حقوق لي', 'مستحقات عند الآخرين', '٠١'),
@@ -70,6 +78,111 @@ class HomeScreen extends StatelessWidget {
           style: TextStyle(fontSize: 11.5, color: WasiyyatiColors.secondaryInk)),
       ],
     )),
+  );
+}
+
+class _ReviewDigest extends StatelessWidget {
+  const _ReviewDigest({required this.schedule, required this.onOpen});
+
+  final ReviewSchedule schedule;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => WPaperCard(
+    key: const Key('home-review-digest'),
+    onTap: onOpen,
+    padding: const EdgeInsets.fromLTRB(17, 16, 16, 15),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: WasiyyatiColors.sage,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(
+              Icons.event_note_outlined,
+              color: WasiyyatiColors.ink,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 11),
+          const Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('مواعيد تحتاج متابعة',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+              SizedBox(height: 4),
+              Text('حسب التواريخ التي سجلتها',
+                style: TextStyle(
+                  fontSize: 11.5, color: WasiyyatiColors.secondaryInk)),
+            ],
+          )),
+          const Icon(Icons.chevron_left_rounded,
+            color: WasiyyatiColors.copper),
+        ]),
+        const SizedBox(height: 14),
+        if (schedule.isEmpty)
+          const Text(
+            'لم تُسجّل مواعيد غير مسوّاة بعد. يمكنك إضافتها من سجل الحقوق.',
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.65,
+              color: WasiyyatiColors.secondaryInk,
+            ),
+          )
+        else
+          Wrap(
+            spacing: 16,
+            runSpacing: 10,
+            children: [
+              _DigestNumber('فات موعدها', schedule.overdue.length,
+                WasiyyatiColors.warning),
+              _DigestNumber('اليوم', schedule.today.length, WasiyyatiColors.ink),
+              _DigestNumber('خلال ٧ أيام', schedule.upcoming.length,
+                WasiyyatiColors.positive),
+              _DigestNumber('لاحقًا', schedule.later.length,
+                WasiyyatiColors.secondaryInk),
+            ],
+          ),
+        const SizedBox(height: 11),
+        const Text(
+          'فتح جدول المراجعة ←',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: WasiyyatiColors.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _DigestNumber extends StatelessWidget {
+  const _DigestNumber(this.label, this.count, this.color);
+  final String label;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text('$count', style: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w800,
+        color: color,
+      )),
+      const SizedBox(width: 5),
+      Text(label, style: const TextStyle(
+        fontSize: 11.5,
+        color: WasiyyatiColors.secondaryInk,
+      )),
+    ],
   );
 }
 
