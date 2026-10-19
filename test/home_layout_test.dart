@@ -46,6 +46,35 @@ void main() {
       lessThan(nav.top));
   });
 
+  testWidgets('quick add is usable on a narrow phone', (tester) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = VaultController(EncryptedVault());
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MaterialApp(
+      locale: const Locale('ar'),
+      theme: buildWasiyyatiTheme(),
+      home: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(body: HomeScreen(controller: controller)),
+      ),
+    ));
+
+    final button = find.byKey(const Key('home-add-record'));
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-quick-overview')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('قيد جديد'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('regular width wrapper still gives scrollable pages full height',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
