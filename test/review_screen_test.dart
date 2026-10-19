@@ -47,12 +47,25 @@ void main() {
     ));
 
     final summary = find.byKey(const Key('home-review-digest'));
+    // The quick overview above this card can push it outside the ListView's
+    // lazily built viewport. Scroll until it is built before accessing it.
+    final homeScrollable = find.descendant(
+      of: find.byKey(const Key('home-scroll')),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      summary,
+      150,
+      scrollable: homeScrollable,
+    );
     await tester.ensureVisible(summary);
     await tester.pumpAndSettle();
     expect(summary, findsOneWidget);
     await tester.tap(summary);
     await tester.pumpAndSettle();
 
+    // Check navigation and the actual overdue summary, not just tap handling.
+    expect(find.byType(ReviewScreen), findsOneWidget);
     expect(find.text('متابعة المواعيد'), findsOneWidget);
     expect(find.text('فات موعدها: 1'), findsOneWidget);
     expect(tester.takeException(), isNull);
