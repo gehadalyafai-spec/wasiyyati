@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/vault_data.dart';
 import '../services/vault_controller.dart';
 import '../theme/wasiyyati_theme.dart';
+import '../utils/home_summary.dart';
+import '../utils/record_details.dart';
 import '../utils/review_schedule.dart';
 import '../widgets/common.dart';
+import 'entry_form.dart';
 import 'records_screen.dart';
 import 'review_screen.dart';
 import 'will_screen.dart';
@@ -15,7 +18,9 @@ class HomeScreen extends StatelessWidget {
   final VaultController controller;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
+  Widget build(BuildContext context) {
+    final summary = HomeSummary.fromEntries(controller.entries);
+    return SafeArea(
     child: WScreenWidth(child: ListView(
       key: const Key('home-scroll'),
       padding: const EdgeInsets.fromLTRB(23, 8, 23, 29),
@@ -43,12 +48,49 @@ class HomeScreen extends StatelessWidget {
           onOpen: () => Navigator.push(context, MaterialPageRoute(
             builder: (_) => WillScreen(controller: controller)))),
         const SizedBox(height: 15),
+        _QuickOverview(
+          summary: summary,
+          onAdd: () => Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => EntryForm(controller: controller),
+            ),
+          ),
+          onAll: () => Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => RecordsScreen(controller: controller),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         _ReviewDigest(
           schedule: ReviewSchedule.fromEntries(controller.entries, DateTime.now()),
           onOpen: () => Navigator.push<void>(context, MaterialPageRoute(
             builder: (_) => ReviewScreen(controller: controller))),
         ),
         const SizedBox(height: 24),
+        if (!summary.isEmpty) ...[
+          SectionHeading(
+            'آخر السجلات',
+            caption: 'افتح أي قيد لعرضه أو تعديله',
+            trailing: TextButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => RecordsScreen(controller: controller),
+                ),
+              ),
+              child: const Text('عرض الكل'),
+            ),
+          ),
+          _RecentRecords(
+            entries: summary.recent,
+            onOpen: (entry) => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => EntryForm(controller: controller, entry: entry),
+              ),
+            ),
+          ),
+          const SizedBox(height: 19),
+        ],
         const SectionHeading('فهرس الحقوق', caption: 'انتقل إلى القسم الذي تريد تنظيمه'),
         for (final category in const [
           (EntryKind.receivable, Icons.south_west_rounded, 'حقوق لي', 'مستحقات عند الآخرين', '٠١'),
@@ -79,6 +121,190 @@ class HomeScreen extends StatelessWidget {
       ],
     )),
   );
+  }
+}
+
+class _QuickOverview extends StatelessWidget {
+  const _QuickOverview({
+    required this.summary,
+    required this.onAdd,
+    required this.onAll,
+  });
+  final HomeSummary summary;
+  final VoidCallback onAdd;
+  final VoidCallback onAll;
+
+  @override
+  Widget build(BuildContext context) => WPaperCard(
+    key: const Key('home-quick-overview'),
+    padding: const EdgeInsets.fromLTRB(17, 15, 17, 15),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('دفتر الحقوق', style: TextStyle(
+          fontWeight: FontWeight.w800, fontSize: 15,
+        )),
+        const SizedBox(height: 13),
+        Row(children: [
+          Expanded(child: _CountItem(
+            title: 'إجمالي القيود', count: summary.total,
+            color: WasiyyatiColors.ink,
+          )),
+          Container(width: 1, height: 38, color: WasiyyatiColors.rule),
+          Expanded(child: _CountItem(
+            title: 'قيد المراجعة', count: summary.pending,
+            color: WasiyyatiColors.copper,
+          )),
+          Container(width: 1, height: 38, color: WasiyyatiColors.rule),
+          Expanded(child: _CountItem(
+            title: 'تمت التسوية', count: summary.completed,
+            color: WasiyyatiColors.positive,
+          )),
+        ]),
+        const SizedBox(height: 15),
+        Row(children: [
+          Expanded(child: FilledButton.icon(
+            key: const Key('home-add-record'),
+            onPressed: onAdd,
+            icon: const Icon(Icons.add_rounded, size: 19),
+            label: const Text('إضافة سجل'),
+          )),
+          const SizedBox(width: 9),
+          Expanded(child: OutlinedButton.icon(
+            key: const Key('home-all-records'),
+            onPressed: onAll,
+            icon: const Icon(Icons.list_alt_rounded, size: 18),
+            label: const Text('فتح السجل'),
+          )),
+        ]),
+        const SizedBox(height: 7),
+        const Text(
+          'الأرقام لعدد القيود فقط، وليست مجموعًا ماليًا أو حكمًا على الحقوق.',
+          style: TextStyle(
+            fontSize: 10.5,
+            height: 1.6,
+            color: WasiyyatiColors.secondaryInk,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CountItem extends StatelessWidget {
+  const _CountItem({
+    required this.title, required this.count, required this.color,
+  });
+  final String title;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Text('$count', style: TextStyle(
+        fontSize: 23, fontWeight: FontWeight.w800, color: color,
+      )),
+      const SizedBox(height: 3),
+      Text(
+        title,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        style: const TextStyle(
+          fontSize: 10.5, color: WasiyyatiColors.secondaryInk,
+        ),
+      ),
+    ],
+  );
+}
+
+class _RecentRecords extends StatelessWidget {
+  const _RecentRecords({required this.entries, required this.onOpen});
+  final List<VaultEntry> entries;
+  final ValueChanged<VaultEntry> onOpen;
+
+  @override
+  Widget build(BuildContext context) => WPaperCard(
+    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
+    child: Column(children: [
+      for (var i = 0; i < entries.length; i++) ...[
+        if (i > 0) const Divider(height: 1),
+        _RecentRow(
+          item: entries[i],
+          onTap: () => onOpen(entries[i]),
+        ),
+      ],
+    ]),
+  );
+}
+
+class _RecentRow extends StatelessWidget {
+  const _RecentRow({required this.item, required this.onTap});
+  final VaultEntry item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (item.kind) {
+      EntryKind.owed => Icons.north_east_rounded,
+      EntryKind.receivable => Icons.south_west_rounded,
+      EntryKind.trust => Icons.inventory_2_outlined,
+      EntryKind.asset => Icons.home_work_outlined,
+    };
+    return InkWell(
+      key: ValueKey('home-recent-${item.id}'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 1),
+        child: Row(children: [
+          Container(
+            height: 35, width: 35,
+            decoration: BoxDecoration(
+              color: WasiyyatiColors.sage,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 19, color: WasiyyatiColors.ink),
+          ),
+          const SizedBox(width: 11),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.title,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800, fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${item.kind.plural} • ${item.completed ? 'تمت التسوية' : 'غير مسوّى'}',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11, color: WasiyyatiColors.secondaryInk,
+                ),
+              ),
+            ],
+          )),
+          const SizedBox(width: 7),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(
+              formatRecordDate(item.updatedAt),
+              style: const TextStyle(
+                fontSize: 10, color: WasiyyatiColors.secondaryInk,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Icon(
+              Icons.chevron_left_rounded,
+              size: 17, color: WasiyyatiColors.copper,
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
 }
 
 class _ReviewDigest extends StatelessWidget {
