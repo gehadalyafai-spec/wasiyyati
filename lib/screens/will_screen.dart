@@ -65,7 +65,9 @@ class _WillScreenState extends State<WillScreen> {
 
   /// Save any pending form edits before opening older encrypted revisions.
   Future<void> _openHistory() async {
-    if (!await _save(showFeedback: false) || !mounted) return;
+    if (!await _save(showFeedback: false) || !mounted) {
+      return;
+    }
     final restored = await Navigator.push<bool>(context, MaterialPageRoute(
       builder: (_) => WillHistoryScreen(controller: widget.controller),
     ));

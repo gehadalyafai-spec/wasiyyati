@@ -152,7 +152,9 @@ class _WillRevisionDetailsState extends State<_WillRevisionDetails> {
   bool _busy = false;
 
   Future<void> _restore() async {
-    if (_busy) return;
+    if (_busy) {
+      return;
+    }
     final accepted = await confirmAction(
       context,
       title: 'استعادة هذه المسودة؟',
@@ -161,15 +163,23 @@ class _WillRevisionDetailsState extends State<_WillRevisionDetails> {
           'لا تتغير الديون والأمانات.',
       confirm: 'استعادة النسخة',
     );
-    if (!accepted || !mounted) return;
+    if (!accepted || !mounted) {
+      return;
+    }
     setState(() => _busy = true);
     try {
       await widget.controller.restoreWillRevision(widget.revision.id);
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
     } catch (error) {
-      if (mounted) showError(context, error);
+      if (mounted) {
+        showError(context, error);
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
