@@ -48,10 +48,10 @@ void main() {
 
   testWidgets('regular width wrapper still gives scrollable pages full height',
       (tester) async {
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: WScreenWidth(
-          child: ListView(children: [Text('scroll-body')]),
+          child: ListView(children: const [Text('scroll-body')]),
         ),
       ),
     ));
