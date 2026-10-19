@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/vault_data.dart';
 import '../services/vault_controller.dart';
 import '../utils/arabic_number.dart';
+import '../utils/record_details.dart';
 import '../widgets/common.dart';
 
 class EntryForm extends StatefulWidget {
@@ -17,6 +18,8 @@ class _EntryFormState extends State<EntryForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _title, _party, _amount, _notes;
   late EntryKind _kind;
+  String? _currencyCode;
+  DateTime? _dueDate;
   bool _busy = false;
 
   @override
@@ -28,6 +31,8 @@ class _EntryFormState extends State<EntryForm> {
     _amount = TextEditingController(text: item?.amount?.toString() ?? '');
     _notes = TextEditingController(text: item?.notes ?? '');
     _kind = item?.kind ?? widget.defaultKind ?? EntryKind.owed;
+    _currencyCode = item?.currencyCode;
+    _dueDate = item?.dueDate;
   }
 
   @override
@@ -37,6 +42,18 @@ class _EntryFormState extends State<EntryForm> {
     _amount.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDueDate() async {
+    final chosen = await showDatePicker(
+      context: context,
+      initialDate: _dueDate ?? DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+    );
+    if (chosen != null && mounted) {
+      setState(() => _dueDate = chosen);
+    }
   }
 
   Future<void> _save() async {
@@ -51,6 +68,8 @@ class _EntryFormState extends State<EntryForm> {
       title: _title.text.trim(),
       party: _party.text.trim(),
       amount: amount.isEmpty ? null : parseMoneyInput(amount),
+      currencyCode: amount.isEmpty ? null : _currencyCode,
+      dueDate: _dueDate,
       notes: _notes.text.trim(),
       completed: old?.completed ?? false,
       createdAt: old?.createdAt ?? now,
@@ -106,7 +125,7 @@ class _EntryFormState extends State<EntryForm> {
             controller: _amount,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: formDecoration('المبلغ (اختياري)',
-              hint: 'اكتب العملة في الملاحظات؛ لن نجمع عملات مختلفة'),
+              hint: 'مثل ١٥٠٠ أو 1500.50'),
             validator: (value) {
               if (value == null || value.trim().isEmpty) return null;
               final number = parseMoneyInput(value);
@@ -116,13 +135,56 @@ class _EntryFormState extends State<EntryForm> {
               return null;
             },
           ),
+          const SizedBox(height: 9),
+          DropdownButtonFormField<String>(
+            key: const Key('entry-currency'),
+            initialValue: _currencyCode ?? '',
+            isExpanded: true,
+            decoration: formDecoration('العملة (اختياري)'),
+            items: [
+              const DropdownMenuItem<String>(
+                value: '', child: Text('غير محددة'),
+              ),
+              for (final option in supportedRecordCurrencies.entries)
+                DropdownMenuItem<String>(
+                  value: option.key,
+                  child: Text('${option.value} (${option.key})'),
+                ),
+              if (_currencyCode != null &&
+                  !supportedRecordCurrencies.containsKey(_currencyCode))
+                DropdownMenuItem<String>(
+                  value: _currencyCode!,
+                  child: Text(_currencyCode!),
+                ),
+            ],
+            onChanged: (value) => setState(
+              () => _currencyCode = value == null || value.isEmpty ? null : value,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(
+              key: const Key('entry-due-date'),
+              onPressed: _pickDueDate,
+              icon: const Icon(Icons.event_outlined),
+              label: Text(_dueDate == null
+                  ? 'إضافة موعد استحقاق أو مراجعة'
+                  : 'الموعد: ${formatRecordDate(_dueDate!)}'),
+            )),
+            if (_dueDate != null)
+              IconButton(
+                tooltip: 'إزالة الموعد',
+                onPressed: () => setState(() => _dueDate = null),
+                icon: const Icon(Icons.close_rounded),
+              ),
+          ]),
         ])),
         const WChapterHeader(number: '٣', title: 'تفاصيل داعمة',
           subtitle: 'متى نشأ الحق؟ أين يوجد المستند؟ وما الذي ينبغي معرفته؟'),
         WPaperCard(child: TextFormField(
           controller: _notes, maxLength: 4000, maxLines: 6,
           decoration: formDecoration('الملاحظات',
-            hint: 'العملة، تفاصيل الاتفاق أو مكان الإثبات. لا تضع كلمات مرور.'),
+            hint: 'تفاصيل الاتفاق أو مكان الإثبات. لا تضع كلمات مرور.'),
         )),
         const SizedBox(height: 19),
         const WInfoBanner(text: 'هذا السجل للتنظيم الشخصي، ولا يثبت دينًا أو ملكية دون مستندات وإجراءات معتبرة.'),

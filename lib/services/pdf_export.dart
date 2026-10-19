@@ -3,6 +3,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models/vault_data.dart';
+import '../utils/record_details.dart';
 
 class PdfExport {
   static Future<void> share(VaultData data) async {
@@ -23,7 +24,8 @@ class PdfExport {
         pw.Text(kind.plural, style: headStyle, textDirection: pw.TextDirection.rtl),
         ...entries.expand((entry) => _paragraphs(
               '• ${entry.title} — ${entry.party.isEmpty ? 'دون اسم' : entry.party}'
-              '${entry.amount == null ? '' : ' — ${entry.amount}'}'
+              '${entry.amount == null ? '' : ' — ${entry.amount} ${currencyDescription(entry.currencyCode)}'}'
+              '${entry.dueDate == null ? '' : ' — الموعد: ${formatRecordDate(entry.dueDate!)}'}'
               '${entry.completed ? ' — تمت التسوية' : ''}'
               '${entry.notes.isEmpty ? '' : '\n${entry.notes}'}',
               textStyle,

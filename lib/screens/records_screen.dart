@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import '../models/vault_data.dart';
 import '../services/vault_controller.dart';
 import '../theme/wasiyyati_theme.dart';
+import '../utils/record_details.dart';
 import '../widgets/common.dart';
 import 'entry_form.dart';
+
+enum _SettlementFilter { all, pending, completed }
+enum _RecordsOrder { newest, oldest, nearestDue }
 
 class RecordsScreen extends StatefulWidget {
   const RecordsScreen({super.key, required this.controller, this.initialKind});
@@ -17,6 +21,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
   final searchController = TextEditingController();
   EntryKind? filter;
   String query = '';
+  _SettlementFilter settlement = _SettlementFilter.all;
+  _RecordsOrder order = _RecordsOrder.newest;
 
   @override
   void initState() {
@@ -28,6 +34,25 @@ class _RecordsScreenState extends State<RecordsScreen> {
   void dispose() {
     searchController.dispose();
     super.dispose();
+  }
+
+  int _compareEntries(VaultEntry a, VaultEntry b) {
+    switch (order) {
+      case _RecordsOrder.newest:
+        return b.updatedAt.compareTo(a.updatedAt);
+      case _RecordsOrder.oldest:
+        return a.updatedAt.compareTo(b.updatedAt);
+      case _RecordsOrder.nearestDue:
+        final aDue = a.dueDate;
+        final bDue = b.dueDate;
+        if (aDue == null && bDue == null) {
+          return b.updatedAt.compareTo(a.updatedAt);
+        }
+        if (aDue == null) return 1;
+        if (bDue == null) return -1;
+        final comparison = aDue.compareTo(bDue);
+        return comparison == 0 ? b.updatedAt.compareTo(a.updatedAt) : comparison;
+    }
   }
 
   Future<void> _openForm({VaultEntry? entry}) async {
@@ -55,11 +80,19 @@ class _RecordsScreenState extends State<RecordsScreen> {
       builder: (context, _) {
         final matches = widget.controller.entries.where((entry) {
           if (filter != null && entry.kind != filter) return false;
+          if (settlement == _SettlementFilter.pending && entry.completed) {
+            return false;
+          }
+          if (settlement == _SettlementFilter.completed && !entry.completed) {
+            return false;
+          }
           if (query.isEmpty) return true;
           final needle = query.toLowerCase();
-          return [entry.title, entry.party, entry.notes, entry.kind.plural]
-              .any((value) => value.toLowerCase().contains(needle));
-        }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+          return [
+            entry.title, entry.party, entry.notes, entry.kind.plural,
+            entry.currencyCode ?? '', currencyDescription(entry.currencyCode),
+          ].any((value) => value.toLowerCase().contains(needle));
+        }).toList()..sort(_compareEntries);
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(23, 0, 23, 2),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -91,6 +124,47 @@ class _RecordsScreenState extends State<RecordsScreen> {
               for (final type in EntryKind.values) _chip(type, type.plural),
             ],
           )),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(23, 3, 23, 5),
+            child: Row(children: [
+              const Text('الحالة', style: TextStyle(
+                fontSize: 12, color: WasiyyatiColors.secondaryInk)),
+              const SizedBox(width: 7),
+              DropdownButton<_SettlementFilter>(
+                key: const Key('records-settlement-filter'),
+                value: settlement,
+                underline: const SizedBox.shrink(),
+                items: const [
+                  DropdownMenuItem(
+                    value: _SettlementFilter.all, child: Text('الكل')),
+                  DropdownMenuItem(
+                    value: _SettlementFilter.pending, child: Text('غير مسوّى')),
+                  DropdownMenuItem(
+                    value: _SettlementFilter.completed, child: Text('تمت التسوية')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => settlement = value);
+                  }
+                },
+              ),
+              const Spacer(),
+              PopupMenuButton<_RecordsOrder>(
+                tooltip: 'ترتيب السجلات',
+                icon: const Icon(Icons.sort_rounded),
+                onSelected: (value) => setState(() => order = value),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: _RecordsOrder.newest, child: Text('الأحدث تعديلًا')),
+                  PopupMenuItem(
+                    value: _RecordsOrder.oldest, child: Text('الأقدم تعديلًا')),
+                  PopupMenuItem(
+                    value: _RecordsOrder.nearestDue,
+                    child: Text('أقرب موعد أولًا')),
+                ],
+              ),
+            ]),
+          ),
           Expanded(child: matches.isEmpty
             ? EmptyInfo(
                 icon: Icons.menu_book_outlined,
@@ -156,9 +230,20 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 fontSize: 12)),
             if (item.amount != null) ...[
               const SizedBox(height: 5),
-              Text('${item.amount} • العملة حسب الملاحظات',
+              Text('${item.amount} ${currencyDescription(item.currencyCode)}',
                 style: const TextStyle(fontSize: 11.5,
                   color: WasiyyatiColors.secondaryInk)),
+            ],
+            if (item.dueDate != null) ...[
+              const SizedBox(height: 5),
+              Text(
+                '${isRecordOverdue(item, DateTime.now()) ? 'متأخر عن الموعد' : 'موعد الاستحقاق/المراجعة'}: '
+                '${formatRecordDate(item.dueDate!)}',
+                style: TextStyle(fontSize: 11.5,
+                  color: isRecordOverdue(item, DateTime.now())
+                      ? WasiyyatiColors.warning
+                      : WasiyyatiColors.secondaryInk),
+              ),
             ],
           ])),
           PopupMenuButton<String>(
