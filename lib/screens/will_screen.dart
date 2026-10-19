@@ -6,18 +6,27 @@ import '../theme/wasiyyati_theme.dart';
 import '../widgets/common.dart';
 import 'will_history_screen.dart';
 
+enum _LeaveChoice { save, discard }
+
 class WillScreen extends StatefulWidget {
   const WillScreen({super.key, required this.controller});
   final VaultController controller;
   @override
-  State<WillScreen> createState() => _WillScreenState();
+  State<WillScreen> createState() => WillScreenState();
 }
 
-class _WillScreenState extends State<WillScreen> {
+/// Public State type so the root navigation can ask before leaving the editor.
+class WillScreenState extends State<WillScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name, _city, _executor, _phone,
       _bequests, _instructions;
   bool _busy = false;
+  bool _reloading = false;
+  bool _leaveDialogOpen = false;
+
+  List<TextEditingController> get _fields => [
+    _name, _city, _executor, _phone, _bequests, _instructions,
+  ];
 
   @override
   void initState() {
@@ -29,41 +38,158 @@ class _WillScreenState extends State<WillScreen> {
     _phone = TextEditingController(text: w.executorContact);
     _bequests = TextEditingController(text: w.bequests);
     _instructions = TextEditingController(text: w.instructions);
+    for (final field in _fields) {
+      field.addListener(_onTextEdited);
+    }
+  }
+
+  void _onTextEdited() {
+    if (!_reloading && mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
-    for (final field in [_name, _city, _executor, _phone, _bequests, _instructions]) {
+    for (final field in _fields) {
+      field.removeListener(_onTextEdited);
       field.dispose();
     }
     super.dispose();
   }
 
-  Future<bool> _save({bool showFeedback = true}) async {
-    if (!_formKey.currentState!.validate() || _busy) return false;
-    setState(() => _busy = true);
-    final draft = WillDraft(
-      fullName: _name.text.trim(), city: _city.text.trim(),
-      executorName: _executor.text.trim(), executorContact: _phone.text.trim(),
-      bequests: _bequests.text.trim(), instructions: _instructions.text.trim(),
-      lastReviewed: DateTime.now(),
-    );
+  WillDraft _draftFromInputs({DateTime? reviewedAt}) => WillDraft(
+    fullName: _name.text.trim(),
+    city: _city.text.trim(),
+    executorName: _executor.text.trim(),
+    executorContact: _phone.text.trim(),
+    bequests: _bequests.text.trim(),
+    instructions: _instructions.text.trim(),
+    lastReviewed: reviewedAt ?? widget.controller.will.lastReviewed,
+  );
+
+  bool get hasUnsavedChanges =>
+      !_draftFromInputs().hasSameContent(widget.controller.will);
+
+  void _loadSavedDraft() {
+    final draft = widget.controller.will;
+    _reloading = true;
     try {
-      await widget.controller.saveWill(draft);
-      if (mounted && showFeedback) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('حُفظت المسودة مشفرة على هذا الجهاز')));
-      }
-      return true;
-    } catch (error) {
-      if (mounted) showError(context, error);
-      return false;
+      _name.text = draft.fullName;
+      _city.text = draft.city;
+      _executor.text = draft.executorName;
+      _phone.text = draft.executorContact;
+      _bequests.text = draft.bequests;
+      _instructions.text = draft.instructions;
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _reloading = false;
+    }
+    if (mounted) {
+      setState(() {});
     }
   }
 
-  /// Save any pending form edits before opening older encrypted revisions.
+  Future<bool> _save({bool showFeedback = true}) async {
+    if (_busy) {
+      return false;
+    }
+    if (!hasUnsavedChanges) {
+      return true;
+    }
+    if (!_formKey.currentState!.validate()) {
+      return false;
+    }
+    final draft = _draftFromInputs(reviewedAt: DateTime.now());
+    setState(() => _busy = true);
+    try {
+      await widget.controller.saveWill(draft);
+      if (mounted && showFeedback) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('حُفظت المسودة مشفرة على هذا الجهاز'),
+        ));
+      }
+      return true;
+    } catch (error) {
+      if (mounted) {
+        showError(context, error);
+      }
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  /// Best-effort encrypted save before the app is hidden by the device lock.
+  /// Navigation between tabs always waits for an explicit save/discard choice.
+  Future<void> saveOnBackground() async {
+    if (mounted && hasUnsavedChanges && !_busy) {
+      await _save(showFeedback: false);
+    }
+  }
+
+  /// False means that the tab transition or back navigation must be cancelled.
+  Future<bool> confirmLeave() async {
+    if (!mounted || _busy || _leaveDialogOpen) {
+      return false;
+    }
+    if (!hasUnsavedChanges) {
+      return true;
+    }
+    _leaveDialogOpen = true;
+    try {
+      final choice = await showDialog<_LeaveChoice>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('تغييرات لم تُحفظ'),
+          content: const Text(
+            'عدّلت مسودة الوصية. هل تريد حفظ التغييرات مشفرة قبل المغادرة؟',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, _LeaveChoice.discard),
+              child: const Text('تجاهل التعديلات'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, _LeaveChoice.save),
+              child: const Text('حفظ ومغادرة'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || choice == null) {
+        return false;
+      }
+      if (choice == _LeaveChoice.discard) {
+        _loadSavedDraft();
+        return true;
+      }
+      return await _save(showFeedback: false);
+    } finally {
+      _leaveDialogOpen = false;
+    }
+  }
+
+  Future<void> _handleSystemBack(bool didPop) async {
+    if (didPop) {
+      return;
+    }
+    if (await confirmLeave() && mounted) {
+      // Allow PopScope to rebuild with a clean editor before retrying the pop.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).maybePop();
+        }
+      });
+    }
+  }
+
   Future<void> _openHistory() async {
     if (!await _save(showFeedback: false) || !mounted) {
       return;
@@ -72,15 +198,7 @@ class _WillScreenState extends State<WillScreen> {
       builder: (_) => WillHistoryScreen(controller: widget.controller),
     ));
     if (restored == true && mounted) {
-      final draft = widget.controller.will;
-      setState(() {
-        _name.text = draft.fullName;
-        _city.text = draft.city;
-        _executor.text = draft.executorName;
-        _phone.text = draft.executorContact;
-        _bequests.text = draft.bequests;
-        _instructions.text = draft.instructions;
-      });
+      _loadSavedDraft();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('تمت استعادة المسودة السابقة وحُفظت مشفرة'),
       ));
@@ -90,119 +208,156 @@ class _WillScreenState extends State<WillScreen> {
   Future<void> _review() async {
     if (await _save(showFeedback: false) && mounted) {
       await Navigator.push(context, MaterialPageRoute(
-        builder: (_) => WillPreviewScreen(controller: widget.controller)));
+        builder: (_) => WillPreviewScreen(controller: widget.controller),
+      ));
     }
   }
 
   Widget _textField(TextEditingController controller, String label, int limit,
-      {int lines = 1, String? hint}) => Padding(
+      {int lines = 1, String? hint, Key? fieldKey}) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: TextFormField(
+      key: fieldKey,
       controller: controller,
+      readOnly: _busy,
       maxLines: lines,
       maxLength: limit,
       decoration: formDecoration(label, hint: hint),
     ),
   );
 
-  Widget _chapter(String number, String title, String description,
-      List<Widget> children) => Column(crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      WChapterHeader(number: number, title: title, subtitle: description),
-      WPaperCard(child: Column(children: children)),
-    ],
+  Widget _chapter(int index, String title, String description,
+      List<Widget> children) => Padding(
+    padding: const EdgeInsets.only(top: 13),
+    child: WPaperCard(padding: EdgeInsets.zero, radius: 18,
+      child: ExpansionTile(
+        key: ValueKey('will-chapter-$index'),
+        maintainState: true,
+        initiallyExpanded: index == 1,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+        childrenPadding: const EdgeInsets.fromLTRB(17, 0, 17, 12),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        leading: Container(
+          width: 39, height: 39, alignment: Alignment.center,
+          decoration: BoxDecoration(color: WasiyyatiColors.ink,
+            borderRadius: BorderRadius.circular(12)),
+          child: Text('$index', style: const TextStyle(
+            color: WasiyyatiColors.paper, fontWeight: FontWeight.w800)),
+        ),
+        title: Text(title, style: const TextStyle(
+          fontSize: 16, fontWeight: FontWeight.w800)),
+        subtitle: Text(description, style: const TextStyle(
+          color: WasiyyatiColors.secondaryInk, fontSize: 11.5, height: 1.5)),
+        children: [const Divider(height: 18), ...children],
+      ),
+    ),
   );
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.controller.will;
-    final fields = data.filledFieldCount;
-    return Scaffold(
-      appBar: AppBar(title: const Text('تحرير الوصية')),
-      body: WScreenWidth(child: Form(
-        key: _formKey,
-        child: ListView(padding: const EdgeInsets.fromLTRB(23, 0, 23, 32), children: [
-          const WPageIntro(
-            eyebrow: 'الوثيقة الحيّة • فصل الوصية',
-            title: 'مسودة وصيتي',
-            description: 'اكتبها وراجعها متى شئت، ثم اعرضها على مختص قبل التوثيق.'),
-          Container(padding: const EdgeInsets.all(19),
-            decoration: BoxDecoration(color: WasiyyatiColors.ink,
-              borderRadius: BorderRadius.circular(21)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const WDocumentSeal(light: true, size: 39),
-                const SizedBox(width: 13),
-                const Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('مسودتك الشخصية', style: TextStyle(color: WasiyyatiColors.paper,
-                      fontWeight: FontWeight.w800, fontSize: 15)),
-                    SizedBox(height: 2),
-                    Text('ليس مؤشرًا لصحة الوصية الشرعية أو القانونية',
-                      style: TextStyle(color: Color(0xFFCFD8CF), fontSize: 10.5)),
-                  ])),
-              ]),
-              const SizedBox(height: 15),
-              LinearProgressIndicator(value: fields / WillDraft.editableFieldCount,
-                minHeight: 5, backgroundColor: const Color(0xFF53665C),
-                valueColor: const AlwaysStoppedAnimation(WasiyyatiColors.copper),
-                borderRadius: BorderRadius.circular(10)),
-              const SizedBox(height: 9),
-              Text('الحقول المحفوظة: $fields من ${WillDraft.editableFieldCount}',
-                style: const TextStyle(color: Color(0xFFD4DDCF), fontSize: 12)),
-            ])),
-          const SizedBox(height: 15),
-          const WInfoBanner(
-            text: 'هذه مسودة تنظيمية غير موثّقة. بعض الوصايا تخضع لشروط شرعية وقانونية خاصة؛ راجعها مع مختص في بلدك.'),
-          _chapter('١', 'بيانات الموصي', 'معلومات التعريف الأساسية بالوثيقة', [
-            _textField(_name, 'الاسم الكامل', 120),
-            _textField(_city, 'المدينة / البلد', 80),
+    final current = _draftFromInputs();
+    final fields = current.filledFieldCount;
+    final dirty = hasUnsavedChanges;
+    return PopScope(
+      canPop: !dirty && !_busy,
+      onPopInvokedWithResult: (didPop, _) => _handleSystemBack(didPop),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('تحرير الوصية')),
+        body: WScreenWidth(child: Form(
+          key: _formKey,
+          child: ListView(padding: const EdgeInsets.fromLTRB(23, 0, 23, 32), children: [
+            const WPageIntro(
+              eyebrow: 'الوثيقة الحيّة • فصل الوصية',
+              title: 'مسودة وصيتي',
+              description: 'اكتبها وراجعها متى شئت، ثم اعرضها على مختص قبل التوثيق.'),
+            Container(padding: const EdgeInsets.all(19),
+              decoration: BoxDecoration(color: WasiyyatiColors.ink,
+                borderRadius: BorderRadius.circular(21)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const WDocumentSeal(light: true, size: 39),
+                  const SizedBox(width: 13),
+                  const Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('مسودتك الشخصية', style: TextStyle(
+                        color: WasiyyatiColors.paper,
+                        fontWeight: FontWeight.w800, fontSize: 15)),
+                      SizedBox(height: 2),
+                      Text('المؤشر لعدد الحقول المكتوبة، وليس لصحة الوصية',
+                        style: TextStyle(color: Color(0xFFCFD8CF), fontSize: 10.5)),
+                    ])),
+                ]),
+                const SizedBox(height: 15),
+                LinearProgressIndicator(value: fields / WillDraft.editableFieldCount,
+                  minHeight: 5, backgroundColor: const Color(0xFF53665C),
+                  valueColor: const AlwaysStoppedAnimation(WasiyyatiColors.copper),
+                  borderRadius: BorderRadius.circular(10)),
+                const SizedBox(height: 9),
+                Text('الحقول المكتوبة: $fields من ${WillDraft.editableFieldCount}',
+                  style: const TextStyle(color: Color(0xFFD4DDCF), fontSize: 12)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Icon(dirty ? Icons.edit_note_rounded : Icons.check_circle_outline_rounded,
+                    size: 17, color: const Color(0xFFE5DAC4)),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                    dirty ? 'تغييرات غير محفوظة' : 'لا توجد تغييرات معلّقة',
+                    key: const Key('will-save-status'),
+                    style: const TextStyle(color: Color(0xFFE5DAC4),
+                      fontWeight: FontWeight.w700, fontSize: 12))),
+                ]),
+              ])),
+            const SizedBox(height: 15),
+            const WInfoBanner(
+              text: 'هذه مسودة تنظيمية غير موثّقة. بعض الوصايا تخضع لشروط شرعية وقانونية خاصة؛ راجعها مع مختص في بلدك.'),
+            _chapter(1, 'بيانات الموصي', 'معلومات التعريف الأساسية بالوثيقة', [
+              _textField(_name, 'الاسم الكامل', 120,
+                fieldKey: const Key('will-full-name')),
+              _textField(_city, 'المدينة / البلد', 80),
+            ]),
+            _chapter(2, 'المعني بتنفيذ الوصية',
+              'تسجيل بياناته لا يمنحه صلاحيات رسمية تلقائيًا', [
+              _textField(_executor, 'اسم الشخص', 120),
+              _textField(_phone, 'وسيلة التواصل', 100),
+            ]),
+            _chapter(3, 'نص الوصية',
+              'مسودة لعرضها على مختص شرعي وقانوني قبل اعتمادها', [
+              _textField(_bequests, 'ما تريد الوصية به', 6000, lines: 6,
+                hint: 'اكتب الوصايا التي ترغب بمراجعتها وتوثيقها'),
+            ]),
+            _chapter(4, 'ملاحظات للأسرة',
+              'معلومات تنظيمية مفيدة دون كلمات مرور أو رموز سرية', [
+              _textField(_instructions, 'إرشادات ومواقع المستندات', 4000,
+                lines: 5, hint: 'مثال: مكان حفظ وثائق الملكية'),
+            ]),
+            const SizedBox(height: 25),
+            FilledButton.icon(
+              key: const Key('save-will'),
+              onPressed: _busy || !dirty ? null : () => _save(),
+              icon: const Icon(Icons.lock_outline_rounded),
+              label: Text(_busy ? 'جارٍ الحفظ...' : 'حفظ المسودة المشفرة'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _review,
+              icon: const Icon(Icons.menu_book_outlined),
+              label: const Text('حفظ ثم معاينة الوثيقة'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const Key('will-history'),
+              onPressed: _busy ? null : _openHistory,
+              icon: const Icon(Icons.history_rounded),
+              label: Text('الإصدارات السابقة (${widget.controller.revisions.length})'),
+            ),
+            const SizedBox(height: 15),
+            const Text('سيُطلب منك حفظ التغييرات أو تجاهلها قبل مغادرة المحرر.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: WasiyyatiColors.secondaryInk, fontSize: 11.5)),
           ]),
-          _chapter('٢', 'المعني بتنفيذ الوصية',
-            'تسجيل بياناته لا يمنحه صلاحيات رسمية تلقائيًا', [
-            _textField(_executor, 'اسم الشخص', 120),
-            _textField(_phone, 'وسيلة التواصل', 100),
-          ]),
-          _chapter('٣', 'نص الوصية',
-            'مسودة لعرضها على مختص شرعي وقانوني قبل اعتمادها', [
-            _textField(_bequests, 'ما تريد الوصية به', 6000, lines: 6,
-              hint: 'اكتب الوصايا التي ترغب بمراجعتها وتوثيقها'),
-          ]),
-          _chapter('٤', 'ملاحظات للأسرة',
-            'معلومات تنظيمية مفيدة دون كلمات مرور أو رموز سرية', [
-            _textField(_instructions, 'إرشادات ومواقع المستندات', 4000,
-              lines: 5, hint: 'مثال: مكان حفظ وثائق الملكية'),
-          ]),
-          const SizedBox(height: 25),
-          FilledButton.icon(
-            key: const Key('save-will'),
-            onPressed: _busy ? null : () => _save(),
-            icon: const Icon(Icons.lock_outline_rounded),
-            label: Text(_busy ? 'جارٍ الحفظ...' : 'حفظ المسودة المشفرة'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _busy ? null : _review,
-            icon: const Icon(Icons.menu_book_outlined),
-            label: const Text('حفظ ثم معاينة الوثيقة'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: WasiyyatiColors.ink,
-              side: const BorderSide(color: WasiyyatiColors.rule),
-              minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            key: const Key('will-history'),
-            onPressed: _busy ? null : _openHistory,
-            icon: const Icon(Icons.history_rounded),
-            label: Text('الإصدارات السابقة (${widget.controller.revisions.length})'),
-          ),
-          const SizedBox(height: 15),
-          const Text('احفظ تغييراتك قبل مغادرة الصفحة.', textAlign: TextAlign.center,
-            style: TextStyle(color: WasiyyatiColors.secondaryInk, fontSize: 11.5)),
-        ]),
-      )),
+        )),
+      ),
     );
   }
 }
@@ -258,9 +413,18 @@ class _WillPreviewScreenState extends State<WillPreviewScreen> {
         children: [
           const WPageIntro(eyebrow: 'معاينة الوثيقة', title: 'قبل التصدير',
             description: 'اقرأ التفاصيل، ثم راجعها شرعيًا وقانونيًا عند الحاجة.'),
+          const WInfoBanner(text: 'هذه المعاينة تعرض آخر مسودة محفوظة فقط. '
+            'أي تعديلات غير محفوظة لا تدخل في هذه النسخة.'),
+          const SizedBox(height: 16),
           WPaperCard(radius: 6, padding: const EdgeInsets.all(24),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Center(child: WDocumentSeal(size: 48)),
+              Row(children: [
+                const WDocumentSeal(size: 48),
+                const Spacer(),
+                Text('مسودة للمراجعة فقط', style: TextStyle(
+                  color: WasiyyatiColors.secondaryInk,
+                  fontSize: 12, fontWeight: FontWeight.w700)),
+              ]),
               const SizedBox(height: 15),
               const Center(child: Text('بسم الله الرحمن الرحيم',
                 style: TextStyle(color: WasiyyatiColors.copper,
@@ -268,6 +432,11 @@ class _WillPreviewScreenState extends State<WillPreviewScreen> {
               const Divider(height: 29),
               const Text('مسودة وصية شخصية', style: TextStyle(
                 fontFamily: 'serif', fontWeight: FontWeight.w800, fontSize: 27)),
+              const SizedBox(height: 8),
+              Text('الحقول الواردة: ${w.filledFieldCount} من '
+                '${WillDraft.editableFieldCount}',
+                style: const TextStyle(color: WasiyyatiColors.secondaryInk,
+                  fontSize: 12)),
               const SizedBox(height: 25),
               _part('الاسم الكامل', w.fullName),
               _part('المدينة / البلد', w.city),

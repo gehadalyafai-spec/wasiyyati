@@ -28,6 +28,22 @@ class _WasiyyatiAppState extends State<WasiyyatiApp>
   late final VaultController controller;
   late final AppLock appLock;
   int selected = 0;
+  final _willEditorKey = GlobalKey<WillScreenState>();
+
+  Future<void> _switchTab(int index) async {
+    if (index == selected) {
+      return;
+    }
+    if (selected == 2) {
+      final permitted = await _willEditorKey.currentState?.confirmLeave() ?? true;
+      if (!permitted || !mounted) {
+        return;
+      }
+    }
+    if (mounted) {
+      setState(() => selected = index);
+    }
+  }
 
   @override
   void initState() {
@@ -44,6 +60,10 @@ class _WasiyyatiAppState extends State<WasiyyatiApp>
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused) {
+      if (selected == 2) {
+        // Do not lose unsaved text when locking replaces the active screen.
+        _willEditorKey.currentState?.saveOnBackground();
+      }
       appLock.lock();
     }
   }
@@ -100,14 +120,14 @@ class _WasiyyatiAppState extends State<WasiyyatiApp>
       final pages = [
         HomeScreen(controller: controller),
         RecordsScreen(controller: controller),
-        WillScreen(controller: controller),
+        WillScreen(key: _willEditorKey, controller: controller),
         SettingsScreen(controller: controller, appLock: appLock),
       ];
       return Scaffold(
         body: pages[selected],
         bottomNavigationBar: _DocumentNavigation(
           selected: selected,
-          onSelected: (index) => setState(() => selected = index),
+          onSelected: _switchTab,
         ),
       );
     }),

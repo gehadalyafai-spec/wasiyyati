@@ -107,6 +107,15 @@ class WillDraft {
 
   static const int editableFieldCount = 6;
 
+  /// Edits only: review timestamps must not mark a draft as modified.
+  bool hasSameContent(WillDraft other) =>
+      fullName == other.fullName &&
+      city == other.city &&
+      executorName == other.executorName &&
+      executorContact == other.executorContact &&
+      bequests == other.bequests &&
+      instructions == other.instructions;
+
   Map<String, dynamic> toJson() => {
         'fullName': fullName,
         'city': city,
