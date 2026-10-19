@@ -59,6 +59,7 @@ foreach ($themeFile in $themeFiles) {
 # Some Flutter templates add a default widget_test that references template MyApp.
 # Our real tests are test/vault_data_test.dart.
 if (Test-Path 'test\widget_test.dart') { Remove-Item 'test\widget_test.dart' }
+& (Join-Path $PSScriptRoot 'repair-android-kotlin.ps1')
 Write-Host 'Resolving Flutter dependencies...' -ForegroundColor Cyan
 flutter pub get
 if ($LASTEXITCODE -ne 0) { throw 'flutter pub get failed; resolve dependency constraints above' }

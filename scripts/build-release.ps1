@@ -3,6 +3,7 @@ Set-Location (Join-Path $PSScriptRoot '..')
 if (-not (Test-Path 'android')) {
     throw 'Android host missing. Run: powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1'
 }
+& (Join-Path $PSScriptRoot 'repair-android-kotlin.ps1')
 flutter pub get
 if ($LASTEXITCODE -ne 0) { throw 'pub get failed' }
 flutter analyze
